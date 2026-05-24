@@ -1,0 +1,11 @@
+[package]
+name = "borrow-checker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2.0"
+indexmap = "2.7"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
