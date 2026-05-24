@@ -2,12 +2,28 @@ use crate::ast::{BinOp, Expr, Func, Param, Pattern, Program, Stmt, Ty};
 use crate::error::{BorrowError, Result};
 use crate::span::Span;
 
+/// A hand-written recursive descent parser for the simplified Rust subset.
+///
+/// Supports:
+/// - Function definitions (`fn foo(x: int) -> bool { ... }`)
+/// - `let` bindings with optional type annotations
+/// - Blocks, `if`/`else`, `while`, `return`
+/// - Reference (`&`, `&mut`) and dereference (`*`) expressions
+/// - Method calls and `.clone()` chaining
+/// - Full operator precedence (assignment < `||` < `&&` < comparison
+///   < equality < additive < multiplicative < unary < postfix < primary)
+///
+/// # Errors
+///
+/// Returns [`BorrowError::ParseError`] on invalid syntax with a
+/// [`Span`] pointing at the problem location.
 pub struct Parser {
     input: Vec<char>,
     pos: usize,
 }
 
 impl Parser {
+    /// Create a new parser for the given source text.
     pub fn new(input: &str) -> Self {
         Self {
             input: input.chars().collect(),
@@ -15,6 +31,10 @@ impl Parser {
         }
     }
 
+    /// Parse the full source text into a [`Program`].
+    ///
+    /// Consumes all input until EOF. The program may contain zero
+    /// or more function definitions.
     pub fn parse(&mut self) -> Result<Program> {
         let start = self.pos;
         let mut functions = Vec::new();

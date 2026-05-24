@@ -1,18 +1,13 @@
-use borrow_checker::parser::Parser;
 use borrow_checker::BorrowChecker;
 
 fn check(name: &str, code: &str) {
     println!("─── {name} ───");
-    println!("Input: {code}\n");
-    let mut parser = Parser::new(code);
-    match parser.parse() {
-        Err(e) => println!("  Parse error: {e}\n"),
-        Ok(program) => {
-            let mut checker = BorrowChecker::new();
-            match checker.check_program(&program) {
-                Ok(()) => println!("  ✅ ACCEPTED\n"),
-                Err(e) => println!("  ❌ REJECTED: {e}\n"),
-            }
+    let mut checker = BorrowChecker::new();
+    match checker.check_source(code) {
+        Ok(()) => println!("  ✅ ACCEPTED\n"),
+        Err(e) => {
+            println!("{}", e.format_with_source(code));
+            println!();
         }
     }
 }

@@ -2,32 +2,44 @@ use crate::span::Span;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-/// A borrow in the borrow graph
+/// A single borrow relationship in the borrow graph.
+///
+/// Records that `borrower` holds a (mutable or immutable) reference
+/// to `borrowed`, with the source location for error reporting.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Borrow {
+    /// The variable holding the reference (e.g. `r` in `let r = &x`).
     pub borrower: String,
+    /// The variable being borrowed (e.g. `x` in `let r = &x`).
     pub borrowed: String,
+    /// Whether this is a mutable (`&mut`) or immutable (`&`) borrow.
     pub mutable: bool,
+    /// Source location of the borrow expression.
     pub span: Span,
 }
 
-/// Tracks all active borrows in the program
+/// Tracks all active borrow relationships in the program.
+///
+/// Maintains two complementary indexes — one keyed by borrower,
+/// one by borrowed — so that both "who do I borrow?" and
+/// "who borrows me?" queries are O(1).
 #[derive(Clone, Debug, Default)]
 pub struct BorrowGraph {
-    /// All active borrows keyed by borrower
+    /// Active borrows, keyed by borrower name.
     pub borrows: IndexMap<String, Vec<Borrow>>,
-    /// Set of variables that have been moved
+    /// Variables that have been moved.
     pub moved: HashSet<String>,
-    /// Map of variable -> what borrows it
+    /// Active borrows, keyed by the variable being borrowed.
     pub borrowed_by: IndexMap<String, Vec<Borrow>>,
 }
 
 impl BorrowGraph {
+    /// Create an empty borrow graph.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Record a new borrow
+    /// Insert a new borrow into both indexes.
     pub fn add_borrow(&mut self, borrow: Borrow) {
         let borrowed = borrow.borrowed.clone();
         let borrower = borrow.borrower.clone();
@@ -39,7 +51,11 @@ impl BorrowGraph {
         self.borrows.entry(borrower).or_default().push(borrow);
     }
 
-    /// Remove all borrows by a given borrower (when it goes out of scope)
+    /// Remove all borrows originating from `borrower`.
+    ///
+    /// Called when the borrower goes out of scope — all its
+    /// references are dropped and the borrowed variables are
+    /// released.
     pub fn remove_borrows_by(&mut self, borrower: &str) {
             if let Some(borrows) = self.borrows.swap_remove(borrower) {
             for borrow in borrows {
@@ -50,7 +66,7 @@ impl BorrowGraph {
         }
     }
 
-    /// Check if a variable is currently borrowed
+    /// Check whether `name` has any active borrows.
     pub fn is_borrowed(&self, name: &str) -> bool {
         self.borrowed_by
             .get(name)
@@ -58,7 +74,7 @@ impl BorrowGraph {
             .unwrap_or(false)
     }
 
-    /// Check if a variable is mutably borrowed
+    /// Check whether `name` has an active mutable borrow.
     pub fn is_mutably_borrowed(&self, name: &str) -> bool {
         self.borrowed_by
             .get(name)
@@ -66,7 +82,7 @@ impl BorrowGraph {
             .unwrap_or(false)
     }
 
-    /// Check if a variable is immutably borrowed
+    /// Check whether `name` has an active immutable borrow.
     pub fn is_immutably_borrowed(&self, name: &str) -> bool {
         self.borrowed_by
             .get(name)
@@ -74,7 +90,10 @@ impl BorrowGraph {
             .unwrap_or(false)
     }
 
-    /// Check if there are any mutable borrows of a variable
+    /// Check whether `name` has any mutable borrow.
+    ///
+    /// (Alias for [`is_mutably_borrowed`](Self::is_mutably_borrowed) —
+    /// exists for semantic clarity in call sites.)
     pub fn has_mutable_borrows(&self, name: &str) -> bool {
         self.borrowed_by
             .get(name)
@@ -82,7 +101,7 @@ impl BorrowGraph {
             .unwrap_or(false)
     }
 
-    /// Check if there are any immutable borrows of a variable
+    /// Check whether `name` has any immutable borrow.
     pub fn has_immutable_borrows(&self, name: &str) -> bool {
         self.borrowed_by
             .get(name)
@@ -90,7 +109,7 @@ impl BorrowGraph {
             .unwrap_or(false)
     }
 
-    /// Get all borrows of a variable
+    /// Collect all borrows of `name` (mutable and immutable).
     pub fn get_borrows_of(&self, name: &str) -> Vec<&Borrow> {
         self.borrowed_by
             .get(name)
@@ -98,17 +117,17 @@ impl BorrowGraph {
             .unwrap_or_default()
     }
 
-    /// Record that a variable has been moved
+    /// Mark `name` as moved.
     pub fn record_move(&mut self, name: &str) {
         self.moved.insert(name.to_string());
     }
 
-    /// Check if a variable has been moved
+    /// Check whether `name` has been moved.
     pub fn is_moved(&self, name: &str) -> bool {
         self.moved.contains(name)
     }
 
-    /// Merge another borrow graph into this one
+    /// Merge the borrows and moves from `other` into `self`.
     pub fn merge(&mut self, other: BorrowGraph) {
         for (borrower, borrows) in other.borrows {
             self.borrows.entry(borrower).or_default().extend(borrows);

@@ -6,8 +6,45 @@ use crate::error::{BorrowError, Result};
 use crate::ownership::{OwnershipState, Scope};
 use crate::span::Span;
 
+/// The borrow checker — validates ownership, borrowing, and move semantics
+/// for a simplified Rust subset.
+///
+/// After construction, call [`check_program`](Self::check_program) or
+/// [`check_source`](Self::check_source) to run the checker against AST or
+/// source text, respectively.
+///
+/// # Errors
+///
+/// Returns a [`BorrowError`] describing the first rule violation found.
+///
+/// # Example
+///
+/// ```
+/// use borrow_checker::BorrowChecker;
+///
+/// let mut checker = BorrowChecker::new();
+/// let result = checker.check_source(
+///     "fn main() {
+///         let x = 42;
+///         let r1 = &x;
+///         let r2 = &x;  // two immutable borrows — OK
+///     }"
+/// );
+/// assert!(result.is_ok());
+///
+/// let result = checker.check_source(
+///     "fn main() {
+///         let x = \"hello\";
+///         let r = &x;
+///         let y = x;     // ERROR: can't move while borrowed
+///     }"
+/// );
+/// assert!(result.is_err());
+/// ```
 pub struct BorrowChecker {
+    /// The current ownership state of all variables in scope.
     pub scope: Scope,
+    /// The graph of active borrow relationships.
     pub borrow_graph: BorrowGraph,
     temp_counter: usize,
     block_locals: Vec<Vec<String>>,
@@ -16,6 +53,7 @@ pub struct BorrowChecker {
 }
 
 impl BorrowChecker {
+    /// Create a new borrow checker with an empty scope and no borrows.
     pub fn new() -> Self {
         Self {
             scope: Scope::new(),
@@ -27,6 +65,26 @@ impl BorrowChecker {
         }
     }
 
+    /// Parse `source` as a program, then run the borrow checker on it.
+    ///
+    /// This is the simplest entry point — give it Rust source text and
+    /// get back a [`Result`].
+    ///
+    /// ```
+    /// # use borrow_checker::BorrowChecker;
+    /// let mut checker = BorrowChecker::new();
+    /// assert!(checker.check_source("fn main() { let x = 42; }").is_ok());
+    /// ```
+    pub fn check_source(&mut self, source: &str) -> Result<()> {
+        let mut parser = crate::parser::Parser::new(source);
+        let program = parser.parse()?;
+        self.check_program(&program)
+    }
+
+    /// Check an already-parsed [`Program`] AST.
+    ///
+    /// Validates every function in the program against the core
+    /// ownership and borrowing rules.
     pub fn check_program(&mut self, program: &Program) -> Result<()> {
         for func in &program.functions {
             self.check_function(func)?;
@@ -34,6 +92,10 @@ impl BorrowChecker {
         Ok(())
     }
 
+    /// Check a single function definition.
+    ///
+    /// Resets the checker state (scope, borrows, variable types) and
+    /// validates all statements and expressions in the function body.
     pub fn check_function(&mut self, func: &Func) -> Result<()> {
         self.scope = Scope::new();
         self.borrow_graph = BorrowGraph::new();
@@ -57,6 +119,7 @@ impl BorrowChecker {
         Ok(())
     }
 
+    /// Check a single statement for ownership/borrowing rule violations.
     pub fn check_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
             Stmt::Let { pattern, ty, init, span } => {
@@ -100,6 +163,13 @@ impl BorrowChecker {
         }
     }
 
+    /// Check a single expression for ownership/borrowing rule violations.
+    ///
+    /// Recursively walks the expression tree, enforcing:
+    /// - Use-after-move: reading a moved value
+    /// - Borrow rules: mutable/immutable overlap, multiple mutable borrows
+    /// - Assign-while-borrowed: writing to a borrowed variable
+    /// - Move-while-borrowed: moving a value with active references
     pub fn check_expr(&mut self, expr: &Expr) -> Result<()> {
         match expr {
             Expr::Bool(_, _) | Expr::Int(_, _) | Expr::String(_, _) | Expr::Unit(_) => Ok(()),
