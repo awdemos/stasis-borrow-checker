@@ -57,7 +57,7 @@ impl BorrowGraph {
     /// references are dropped and the borrowed variables are
     /// released.
     pub fn remove_borrows_by(&mut self, borrower: &str) {
-            if let Some(borrows) = self.borrows.swap_remove(borrower) {
+        if let Some(borrows) = self.borrows.swap_remove(borrower) {
             for borrow in borrows {
                 if let Some(list) = self.borrowed_by.get_mut(&borrow.borrowed) {
                     list.retain(|b| b.borrower != borrower);
@@ -133,7 +133,10 @@ impl BorrowGraph {
             self.borrows.entry(borrower).or_default().extend(borrows);
         }
         for (borrowed, borrows) in other.borrowed_by {
-            self.borrowed_by.entry(borrowed).or_default().extend(borrows);
+            self.borrowed_by
+                .entry(borrowed)
+                .or_default()
+                .extend(borrows);
         }
         self.moved.extend(other.moved);
     }

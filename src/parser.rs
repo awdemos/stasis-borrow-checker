@@ -215,7 +215,10 @@ impl Parser {
     fn parse_assign(&mut self) -> Result<Expr> {
         let lhs = self.parse_or()?;
         self.skip_ws();
-        if self.peek() == Some('=') && self.pos + 1 < self.input.len() && self.input[self.pos + 1] != '=' {
+        if self.peek() == Some('=')
+            && self.pos + 1 < self.input.len()
+            && self.input[self.pos + 1] != '='
+        {
             self.bump();
             let rhs = self.parse_assign()?;
             let span = lhs.span().merge(rhs.span());
@@ -406,7 +409,8 @@ impl Parser {
                         span: Span::new(self.pos, self.pos),
                     });
                 }
-            } else if self.eat_char('(') && matches!(expr, Expr::Path(_) | Expr::MethodCall { .. }) {
+            } else if self.eat_char('(') && matches!(expr, Expr::Path(_) | Expr::MethodCall { .. })
+            {
                 let mut args = Vec::new();
                 if self.peek() != Some(')') {
                     args.push(self.parse_expr()?);
@@ -449,15 +453,13 @@ impl Parser {
                 let mut s = String::new();
                 loop {
                     match self.bump() {
-                        '\\' => {
-                            match self.bump() {
-                                'n' => s.push('\n'),
-                                't' => s.push('\t'),
-                                '"' => s.push('"'),
-                                '\\' => s.push('\\'),
-                                c => s.push(c),
-                            }
-                        }
+                        '\\' => match self.bump() {
+                            'n' => s.push('\n'),
+                            't' => s.push('\t'),
+                            '"' => s.push('"'),
+                            '\\' => s.push('\\'),
+                            c => s.push(c),
+                        },
                         '"' => break,
                         c => s.push(c),
                     }
@@ -523,7 +525,10 @@ impl Parser {
     }
 
     fn parse_return(&mut self, start: usize) -> Result<Expr> {
-        let expr = if self.peek().map_or(false, |c| c != ';' && c != '}' && c != ')') {
+        let expr = if self
+            .peek()
+            .map_or(false, |c| c != ';' && c != '}' && c != ')')
+        {
             Some(Box::new(self.parse_expr()?))
         } else {
             None
@@ -628,15 +633,21 @@ impl Parser {
         }
         for (i, &c) in chars.iter().enumerate() {
             if self.input[self.pos + i] != c {
-                let found: String = self.input[self.pos..self.pos + chars.len()].iter().collect();
+                let found: String = self.input[self.pos..self.pos + chars.len()]
+                    .iter()
+                    .collect();
                 return Err(BorrowError::ParseError {
                     message: format!("expected '{}', got '{}'", kw, found),
                     span: Span::new(self.pos, self.pos + chars.len()),
                 });
             }
         }
-        if self.pos + chars.len() < self.input.len() && self.input[self.pos + chars.len()].is_alphanumeric() {
-            let found: String = self.input[self.pos..self.pos + chars.len() + 1].iter().collect();
+        if self.pos + chars.len() < self.input.len()
+            && self.input[self.pos + chars.len()].is_alphanumeric()
+        {
+            let found: String = self.input[self.pos..self.pos + chars.len() + 1]
+                .iter()
+                .collect();
             return Err(BorrowError::ParseError {
                 message: format!("expected '{}', got '{}'", kw, found),
                 span: Span::new(self.pos, self.pos + chars.len()),
