@@ -119,13 +119,19 @@ impl BorrowError {
         let mut line_start = 0;
         for (i, line) in source.lines().enumerate() {
             let line_end = line_start + line.len() + 1; // +1 for '\n'
-            if offset < line_end || (i == source.lines().count() - 1 && offset <= line_start + line.len()) {
+            if offset < line_end
+                || (i == source.lines().count() - 1 && offset <= line_start + line.len())
+            {
                 return (i + 1, offset - line_start + 1, line);
             }
             line_start = line_end;
         }
         let last = source.lines().last().unwrap_or("");
-        (source.lines().count(), offset.saturating_sub(line_start) + 1, last)
+        (
+            source.lines().count(),
+            offset.saturating_sub(line_start) + 1,
+            last,
+        )
     }
 }
 

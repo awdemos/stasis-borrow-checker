@@ -60,7 +60,10 @@ impl BorrowChecker {
             borrow_graph: BorrowGraph::new(),
             temp_counter: 0,
             block_locals: Vec::new(),
-            copy_types: ["int", "bool", "()"].iter().map(|s| s.to_string()).collect(),
+            copy_types: ["int", "bool", "()"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             var_types: HashMap::new(),
         }
     }
@@ -104,7 +107,8 @@ impl BorrowChecker {
         self.var_types.clear();
 
         for param in &func.params {
-            self.scope.declare(param.name.clone(), OwnershipState::Owned);
+            self.scope
+                .declare(param.name.clone(), OwnershipState::Owned);
             let ty_name = match &param.ty {
                 crate::ast::Ty::Bool => "bool",
                 crate::ast::Ty::Int => "int",
@@ -112,7 +116,8 @@ impl BorrowChecker {
                 crate::ast::Ty::String => "string",
                 _ => "unknown",
             };
-            self.var_types.insert(param.name.clone(), ty_name.to_string());
+            self.var_types
+                .insert(param.name.clone(), ty_name.to_string());
         }
 
         self.check_expr(&func.body)?;
@@ -122,14 +127,29 @@ impl BorrowChecker {
     /// Check a single statement for ownership/borrowing rule violations.
     pub fn check_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
-            Stmt::Let { pattern, ty, init, span } => {
+            Stmt::Let {
+                pattern,
+                ty,
+                init,
+                span,
+            } => {
                 if let Some(init_expr) = init {
                     self.check_expr(init_expr)?;
 
-                    if let Expr::Ref { expr, mutable, span: ref_span } = init_expr {
+                    if let Expr::Ref {
+                        expr,
+                        mutable,
+                        span: ref_span,
+                    } = init_expr
+                    {
                         if let Expr::Path(path) = expr.as_ref() {
                             let borrower_name = pattern.name().unwrap_or("_").to_string();
-                            self.register_borrow(&borrower_name, &path.segments[0], *mutable, *ref_span)?;
+                            self.register_borrow(
+                                &borrower_name,
+                                &path.segments[0],
+                                *mutable,
+                                *ref_span,
+                            )?;
                         }
                     }
 
@@ -189,7 +209,11 @@ impl BorrowChecker {
                 }
             }
 
-            Expr::Ref { expr: inner, mutable, span } => {
+            Expr::Ref {
+                expr: inner,
+                mutable,
+                span,
+            } => {
                 self.check_expr(inner)?;
                 match inner.as_ref() {
                     Expr::Path(path) => {
@@ -198,7 +222,9 @@ impl BorrowChecker {
                         let borrower = self.fresh_temp();
                         self.register_borrow(&borrower, var, *mutable, *span)
                     }
-                    Expr::Deref { expr: deref_inner, .. } => {
+                    Expr::Deref {
+                        expr: deref_inner, ..
+                    } => {
                         if let Expr::Path(p) = deref_inner.as_ref() {
                             self.validate_borrow(&p.segments[0], *mutable, *span)?;
                             let borrower = self.fresh_temp();
@@ -213,7 +239,9 @@ impl BorrowChecker {
 
             Expr::Deref { expr: inner, .. } => self.check_expr(inner),
 
-            Expr::Binary { left, right, op: _, .. } => {
+            Expr::Binary {
+                left, right, op: _, ..
+            } => {
                 self.check_expr(left)?;
                 self.check_expr(right)?;
                 if !self.is_var_copy_type(left) {
@@ -225,9 +253,16 @@ impl BorrowChecker {
                 Ok(())
             }
 
-            Expr::Call { func, args, span: _ } => {
+            Expr::Call {
+                func,
+                args,
+                span: _,
+            } => {
                 self.check_expr(func)?;
-                if let Expr::MethodCall { receiver, method, .. } = func.as_ref() {
+                if let Expr::MethodCall {
+                    receiver, method, ..
+                } = func.as_ref()
+                {
                     if method == "clone" {
                         return self.check_expr(receiver);
                     }
@@ -239,7 +274,12 @@ impl BorrowChecker {
                 Ok(())
             }
 
-            Expr::MethodCall { receiver, method, args, span: _ } => {
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                span: _,
+            } => {
                 self.check_expr(receiver)?;
                 if method == "clone" {
                     return Ok(());
@@ -252,7 +292,11 @@ impl BorrowChecker {
                 Ok(())
             }
 
-            Expr::Assign { target, value, span } => {
+            Expr::Assign {
+                target,
+                value,
+                span,
+            } => {
                 if let Expr::Path(path) = target.as_ref() {
                     let var = &path.segments[0];
                     if self.borrow_graph.is_borrowed(var) {
@@ -283,7 +327,12 @@ impl BorrowChecker {
 
             Expr::Block { stmts, tail, span } => self.check_block(stmts, tail.as_deref(), *span),
 
-            Expr::If { cond, then_branch, else_branch, span: _ } => {
+            Expr::If {
+                cond,
+                then_branch,
+                else_branch,
+                span: _,
+            } => {
                 self.check_expr(cond)?;
                 self.check_if(then_branch, else_branch.as_deref())
             }
@@ -306,7 +355,8 @@ impl BorrowChecker {
     }
 
     fn check_block(&mut self, stmts: &[Stmt], tail: Option<&Expr>, _span: Span) -> Result<()> {
-        let existing_borrowers: HashSet<String> = self.borrow_graph.borrows.keys().cloned().collect();
+        let existing_borrowers: HashSet<String> =
+            self.borrow_graph.borrows.keys().cloned().collect();
         self.block_locals.push(Vec::new());
 
         for stmt in stmts {
@@ -400,10 +450,16 @@ impl BorrowChecker {
             Expr::Bool(..) | Expr::Int(..) | Expr::Unit(..) => true,
             Expr::Path(path) => {
                 let var = &path.segments[0];
-                self.var_types.get(var).map(|t| self.is_type_copy(t)).unwrap_or(false)
+                self.var_types
+                    .get(var)
+                    .map(|t| self.is_type_copy(t))
+                    .unwrap_or(false)
             }
             Expr::Binary { op, .. }
-                if matches!(op, BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge) =>
+                if matches!(
+                    op,
+                    BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge
+                ) =>
             {
                 true
             }
@@ -494,7 +550,13 @@ impl BorrowChecker {
         Ok(())
     }
 
-    fn register_borrow(&mut self, borrower: &str, borrowed: &str, mutable: bool, span: Span) -> Result<()> {
+    fn register_borrow(
+        &mut self,
+        borrower: &str,
+        borrowed: &str,
+        mutable: bool,
+        span: Span,
+    ) -> Result<()> {
         let borrow = Borrow {
             borrower: borrower.to_string(),
             borrowed: borrowed.to_string(),
@@ -508,7 +570,9 @@ impl BorrowChecker {
                 if mutable {
                     *state = OwnershipState::MutablyBorrowed { borrow_span: span };
                 } else {
-                    *state = OwnershipState::ImmutablyBorrowed { borrow_spans: vec![span] };
+                    *state = OwnershipState::ImmutablyBorrowed {
+                        borrow_spans: vec![span],
+                    };
                 }
             }
             None => {

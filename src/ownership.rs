@@ -65,9 +65,9 @@ impl Scope {
 
     /// Look up a variable, falling through to the parent scope if needed.
     pub fn get(&self, name: &str) -> Option<&OwnershipState> {
-        self.variables.get(name).or_else(|| {
-            self.parent.as_ref().and_then(|p| p.get(name))
-        })
+        self.variables
+            .get(name)
+            .or_else(|| self.parent.as_ref().and_then(|p| p.get(name)))
     }
 
     /// Mutably borrow the state of a variable, falling through to parent.
