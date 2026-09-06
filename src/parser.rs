@@ -169,13 +169,12 @@ impl Parser {
                 return false;
             }
         }
-        if s.chars().all(|c| c.is_alphanumeric() || c == '_') {
-            if self.pos + chars.len() < self.input.len()
+        if s.chars().all(|c| c.is_alphanumeric() || c == '_')
+            && self.pos + chars.len() < self.input.len()
                 && self.input[self.pos + chars.len()].is_alphanumeric()
             {
                 return false;
             }
-        }
         true
     }
 
@@ -527,7 +526,7 @@ impl Parser {
     fn parse_return(&mut self, start: usize) -> Result<Expr> {
         let expr = if self
             .peek()
-            .map_or(false, |c| c != ';' && c != '}' && c != ')')
+            .is_some_and(|c| c != ';' && c != '}' && c != ')')
         {
             Some(Box::new(self.parse_expr()?))
         } else {
@@ -589,13 +588,12 @@ impl Parser {
                 return false;
             }
         }
-        if s.chars().all(|c| c.is_alphanumeric() || c == '_') {
-            if self.pos + chars.len() < self.input.len()
+        if s.chars().all(|c| c.is_alphanumeric() || c == '_')
+            && self.pos + chars.len() < self.input.len()
                 && self.input[self.pos + chars.len()].is_alphanumeric()
             {
                 return false;
             }
-        }
         self.pos += chars.len();
         true
     }

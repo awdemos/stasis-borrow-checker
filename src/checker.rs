@@ -52,6 +52,12 @@ pub struct BorrowChecker {
     var_types: HashMap<String, String>,
 }
 
+impl Default for BorrowChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BorrowChecker {
     /// Create a new borrow checker with an empty scope and no borrows.
     pub fn new() -> Self {
@@ -141,8 +147,7 @@ impl BorrowChecker {
                         mutable,
                         span: ref_span,
                     } = init_expr
-                    {
-                        if let Expr::Path(path) = expr.as_ref() {
+                        && let Expr::Path(path) = expr.as_ref() {
                             let borrower_name = pattern.name().unwrap_or("_").to_string();
                             self.register_borrow(
                                 &borrower_name,
@@ -151,23 +156,20 @@ impl BorrowChecker {
                                 *ref_span,
                             )?;
                         }
-                    }
 
                     let var_name = pattern.name();
-                    let declared_type = ty.as_ref().map(|t| type_to_name(t));
+                    let declared_type = ty.as_ref().map(type_to_name);
                     let inferred_type = declared_type.or_else(|| infer_type(init_expr));
 
-                    if let Some(ref name) = var_name {
-                        if let Some(t) = inferred_type {
+                    if let Some(ref name) = var_name
+                        && let Some(t) = inferred_type {
                             self.var_types.insert(name.to_string(), t);
                         }
-                    }
 
-                    if !self.is_var_copy_type(init_expr) {
-                        if let Expr::Path(path) = init_expr {
+                    if !self.is_var_copy_type(init_expr)
+                        && let Expr::Path(path) = init_expr {
                             self.try_move(&path.segments[0], *span)?;
                         }
-                    }
                 }
 
                 if let Some(name) = pattern.name() {
@@ -240,7 +242,7 @@ impl BorrowChecker {
             Expr::Deref { expr: inner, .. } => self.check_expr(inner),
 
             Expr::Binary {
-                left, right, op: _, ..
+                left, right, ..
             } => {
                 self.check_expr(left)?;
                 self.check_expr(right)?;
@@ -262,11 +264,9 @@ impl BorrowChecker {
                 if let Expr::MethodCall {
                     receiver, method, ..
                 } = func.as_ref()
-                {
-                    if method == "clone" {
+                    && method == "clone" {
                         return self.check_expr(receiver);
                     }
-                }
                 for arg in args {
                     self.check_expr(arg)?;
                     self.try_move_expr(arg)?;
@@ -305,14 +305,11 @@ impl BorrowChecker {
                             span: *span,
                         });
                     }
-                    match self.scope.get(var) {
-                        Some(OwnershipState::Moved { .. }) => {
-                            return Err(BorrowError::UseAfterMove {
-                                name: var.clone(),
-                                span: *span,
-                            });
-                        }
-                        _ => {}
+                    if let Some(OwnershipState::Moved { .. }) = self.scope.get(var) {
+                        return Err(BorrowError::UseAfterMove {
+                            name: var.clone(),
+                            span: *span,
+                        });
                     }
                 }
                 self.check_expr(value)?;
@@ -455,12 +452,9 @@ impl BorrowChecker {
                     .map(|t| self.is_type_copy(t))
                     .unwrap_or(false)
             }
-            Expr::Binary { op, .. }
-                if matches!(
-                    op,
-                    BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge
-                ) =>
-            {
+            Expr::Binary {
+                op: BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge, ..
+            } => {
                 true
             }
             _ => false,
