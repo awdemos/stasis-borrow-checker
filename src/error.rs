@@ -85,7 +85,7 @@ impl BorrowError {
 
         // Cap underline at a reasonable visual width — the variable name
         // is usually what the error is about, not the whole expression.
-        let underline_len = (span.end.saturating_sub(span.start)).max(1).min(20);
+        let underline_len = (span.end.saturating_sub(span.start)).clamp(1, 20);
         let padding = " ".repeat(col.saturating_sub(1));
         let carets = "^".repeat(underline_len);
 
@@ -115,17 +115,23 @@ impl BorrowError {
         }
     }
 
-    fn locate<'s>(source: &'s str, offset: usize) -> (usize, usize, &'s str) {
+    fn locate(source: &str, offset: usize) -> (usize, usize, &str) {
         let mut line_start = 0;
         for (i, line) in source.lines().enumerate() {
             let line_end = line_start + line.len() + 1; // +1 for '\n'
-            if offset < line_end || (i == source.lines().count() - 1 && offset <= line_start + line.len()) {
+            if offset < line_end
+                || (i == source.lines().count() - 1 && offset <= line_start + line.len())
+            {
                 return (i + 1, offset - line_start + 1, line);
             }
             line_start = line_end;
         }
         let last = source.lines().last().unwrap_or("");
-        (source.lines().count(), offset.saturating_sub(line_start) + 1, last)
+        (
+            source.lines().count(),
+            offset.saturating_sub(line_start) + 1,
+            last,
+        )
     }
 }
 

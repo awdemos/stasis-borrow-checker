@@ -125,15 +125,9 @@ pub enum Expr {
         span: Span,
     },
     /// Return expression: `return expr`.
-    Return {
-        expr: Option<Box<Expr>>,
-        span: Span,
-    },
+    Return { expr: Option<Box<Expr>>, span: Span },
     /// Clone expression: `expr.clone()` — an explicit copy.
-    Clone {
-        expr: Box<Expr>,
-        span: Span,
-    },
+    Clone { expr: Box<Expr>, span: Span },
 }
 
 /// Binary operators in order of precedence (lowest first):
